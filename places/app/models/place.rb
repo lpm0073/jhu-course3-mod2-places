@@ -244,5 +244,16 @@ class Place
   def near(max_meters = 0)
     Place.to_places(Place.near(@location.to_hash, max_meters))
   end
+
+=begin 
+Add a new instance method called photos to the Place model class. This method will return a collection of
+  Photos that have been associated with the place. This method must:
+  • accept an optional set of arguments (offset, and limit) to skip into and limit the result set. The offset
+    should default to 0 and the limit should default to unbounded.
+=end
+  def photos(offset = 0, limit = 0)
+    photos = Photo.find_photos_for_place(@id).skip(offset).limit(limit)
+    photos.map {|photo| Photo.new(photo)}
+  end
 end
 
