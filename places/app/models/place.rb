@@ -164,5 +164,85 @@ class Place
     collection.find.aggregate pipeline
   end
 
+=begin 
+  Create a Place class method called get_country_names that returns a distinct collection of country names (long_names). Your method must:
+  • accept no arguments
+  • create separate documents for address_components.long_name and address_components.types (Hint:$project and $unwind)
+  • select only those documents that have a address_components.types element equal to "country" (Hint:$match)
+  • form a distinct list based on address_components.long_name (Hint: $group)
+  • return a simple collection of just the country names (long_name). You will have to use application code to
+  do this last step. (Hint: .to_a.map {|h| h[:_id]})
+=end
+  def self.get_country_names
+    collection.find.aggregate([
+      {:$project => {_id: 0, address_components: {long_name: 1, types: 1}}},
+      {:$unwind => "$address_components"},
+      {:$unwind => "$address_components.types"},
+      {:$match => {"address_components.types" => "country"}},
+      {:$group => {:_id=>"$address_components.long_name"}}]).to_a.map {|h| h[:_id]}
+  end
+
+=begin 
+  Create a Place class method called find_ids_by_country_code that will return the id of each document in
+  the places collection that has an address_component.short_name of type country and matches the provided
+  parameter. This method must:
+  • accept a single country_code parameter
+  • locate each address_component with a matching short_name being tagged with the country type (Hint: $match)
+  • return only the _id property from the database (Hint: $project)
+  • return only a collection of _ids converted to Strings (Hint: .map {|doc| doc[:_id].to_s})
+=end
+  def self.find_ids_by_country_code country_code
+    collection.find.aggregate([
+      {:$unwind => "$address_components"},
+      {:$match => {
+        "address_components.short_name" => country_code,
+        "address_components.types" => "country"
+        }
+      },
+      {:$group => {_id: "$_id"}},
+      {:$project => {_id: 1}}
+    ]).to_a.map {|doc| doc[:_id].to_s}
+  end
+
+  def self.create_indexes
+    collection.indexes.create_one("geometry.geolocation" => Mongo::Index::GEO2DSPHERE)
+  end
+
+  def self.remove_indexes
+    collection.indexes.drop_one("geometry.geolocation_2dsphere")
+  end
+
+=begin 
+  Create a Place class method called near that returns places that are closest to provided Point. This method
+  must:
+  • accept an input parameter of type Point (created earlier) and an optional max_meters that defaults to no maximum
+  • performs a $near search using the 2dsphere index placed on the geometry.geolocation property and the GeoJSON output of point.to_hash (created earlier). (Hint: Query a 2dsphere Index)
+  • limits the maximum distance – if provided – in determining matches (Hint: $maxDistance)
+  • returns the resulting view (i.e., the result of find())
+  You can demonstrate your new class methods using the Rails console. You can use one of a number of queries
+  to locate a specific document within the places collection and then create a Place instance to represent that
+  document.
+
+  Sample Point:
+    => #<Point:0x000000036aff10 @latitude=39.874572, @longitude=-75.56709699999999>
+
+  pa_point.to_hash
+    => {:type=>"Point", :coordinates=>[-75.56709699999999, 39.874572]}
+
+=end
+  def self.near(point, max_meters = 0)
+    collection.find('geometry.geolocation' => {:$near => {:$geometry => point.to_hash, :$maxDistance => max_meters}})
+  end
+
+=begin 
+  Create an instance method (also) called near that wraps the class method you just finished. This method must:
+  • accept an optional parameter that sets a maximum distance threshold in meters
+  • locate all places within the specified maximum distance threshold
+  • return the collection of matching documents as a collection of Place instances using the to_places class
+  method added earlier.
+=end
+  def near(max_meters = 0)
+    Place.to_places(Place.near(@location.to_hash, max_meters))
+  end
 end
 
